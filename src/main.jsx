@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
 import { 
   Plus, Search, Home, MoreHorizontal, 
-  Wallet, Briefcase, Utensils, ChevronDown, Lock,
-  ChevronRight, ArrowDownRight, ArrowUpRight, Download, AlertTriangle, KeyRound, 
-  Shield, Eye, EyeOff, X, Filter, Trash2, Calendar
+  Wallet, Briefcase, Utensils, Lock,
+  ChevronRight, ArrowDownRight, ArrowUpRight, Download, 
+  KeyRound, Shield, Eye, EyeOff, X, Calendar, Trash2
 } from 'lucide-react';
 
 // --- Persistent Storage Hook ---
@@ -38,7 +39,13 @@ const COLORS = {
   fiduciary: '#8b5cf6'
 };
 
-export default function App() {
+const Obscure = ({ children, isBlurred, className = '' }) => (
+  <span className={`transition-all duration-500 ${isBlurred ? 'blur-[12px] opacity-20' : ''} ${className}`}>
+    {children}
+  </span>
+);
+
+function App() {
   // --- UI & Navigation State ---
   const [view, setView] = useState('home'); 
   const [showAddModal, setShowAddModal] = useState(false); 
@@ -48,13 +55,13 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // --- Persistent Database ---
-  const [blurAmounts, setBlurAmounts] = useLocalStorage('financeos_blur', false);
-  const [showFiduciary, setShowFiduciary] = useLocalStorage('financeos_showFid', false);
-  const [appPin, setAppPin] = useLocalStorage('financeos_pin', null);
-  const [transactions, setTransactions] = useLocalStorage('financeos_txs', [
+  const [blurAmounts, setBlurAmounts] = useLocalStorage('fos_blur', false);
+  const [showFiduciary, setShowFiduciary] = useLocalStorage('fos_showFid', false);
+  const [appPin, setAppPin] = useLocalStorage('fos_pin_code', null);
+  const [transactions, setTransactions] = useLocalStorage('fos_vault', [
     { id: 1, date: 'Feb 21, 2026', title: 'Salary Credit', type: 'income', amount: 450000, flow: 'in', note: 'Monthly Net' },
     { id: 2, date: 'Feb 20, 2026', title: 'Grocery Shopping', type: 'expense', amount: 15000, flow: 'out', note: 'Weekly Restock' },
-    { id: 3, date: 'Feb 19, 2026', title: 'Trust Fund Deposit', type: 'fiduciary', amount: 200000, flow: 'in', note: 'Quarterly allocation' }
+    { id: 3, date: 'Feb 19, 2026', title: 'Trust Allocation', type: 'fiduciary', amount: 200000, flow: 'in', note: 'Managed Fund' }
   ]);
 
   // --- Security Logic ---
@@ -77,11 +84,11 @@ export default function App() {
     }
   };
 
-  // --- Financial Intelligence ---
+  // --- Financial Calculations ---
   const totals = useMemo(() => {
     const personal = transactions.filter(t => t.type !== 'fiduciary');
     const fid = transactions.filter(t => t.type === 'fiduciary');
-    const sum = (list) => list.reduce((acc, t) => acc + (t.flow === 'in' ? t.amount : -t.amount), 0);
+    const sum = (list) => list.reduce((acc, t) => acc + (t.flow === 'in' ? (Number(t.amount) || 0) : -(Number(t.amount) || 0)), 0);
     return { personal: sum(personal), fiduciary: sum(fid) };
   }, [transactions]);
 
@@ -89,15 +96,18 @@ export default function App() {
     let list = transactions.filter(t => showFiduciary ? true : t.type !== 'fiduciary');
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(t => t.title.toLowerCase().includes(q) || t.note.toLowerCase().includes(q));
+      list = list.filter(t => 
+        t.title.toLowerCase().includes(q) || 
+        (t.note && t.note.toLowerCase().includes(q))
+      );
     }
     return list.sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [transactions, showFiduciary, searchQuery]);
 
   const addTransaction = (type, flow) => {
-    const title = prompt(`What is this ${type} for?`);
+    const title = prompt(`Enter title for this ${type}:`);
     if (!title) return;
-    const amountStr = prompt(`Enter amount:`);
+    const amountStr = prompt(`Enter amount in NGN:`);
     const amount = parseInt(amountStr?.replace(/[^0-9]/g, ''));
     if (!amount) return;
 
@@ -115,13 +125,6 @@ export default function App() {
     setShowAddModal(false);
   };
 
-  const Obscure = ({ children, className = '' }) => (
-    <span className={`transition-all duration-500 ${blurAmounts ? 'blur-[10px] opacity-30 select-none' : ''} ${className}`}>
-      {children}
-    </span>
-  );
-
-  // --- Security View ---
   if (isLocked) {
     return (
       <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-center p-8">
@@ -144,8 +147,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans pb-32">
-      <header className="flex items-center justify-between px-6 pt-12 pb-6 sticky top-0 z-30 bg-[#05070a]/90 backdrop-blur-xl">
+    <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans pb-32 selection:bg-gold/30">
+      {/* Header */}
+      <header className="flex items-center justify-between px-6 pt-12 pb-6 sticky top-0 z-30 bg-[#05070a]/90 backdrop-blur-xl border-b border-[#1e2532]/30">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg" style={{ background: `linear-gradient(135deg, ${COLORS.gold}, #8a6d2d)` }}>
             <Wallet className="text-black w-4 h-4" />
@@ -153,10 +157,10 @@ export default function App() {
           <h1 className="text-lg font-bold text-white tracking-tight">FinanceOS</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setBlurAmounts(!blurAmounts)} className="p-2.5 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500">
+          <button onClick={() => setBlurAmounts(!blurAmounts)} className="p-2.5 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500 active:scale-95 transition-all">
             {blurAmounts ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
-          <button onClick={() => setIsSearching(true)} className="p-2.5 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500">
+          <button onClick={() => setIsSearching(true)} className="p-2.5 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500 active:scale-95 transition-all">
             <Search className="w-4 h-4" />
           </button>
         </div>
@@ -164,17 +168,19 @@ export default function App() {
 
       {view === 'home' ? (
         <main className="px-6 space-y-8 animate-in fade-in duration-500">
+          {/* Main Card */}
           <div className="space-y-4">
-            <div onClick={() => setExpandNetWorth(!expandNetWorth)} className="rounded-[2.5rem] p-8 border bg-[#11151f] border-[#1e2532] shadow-2xl transition-all active:scale-[0.97]">
+            <div onClick={() => setExpandNetWorth(!expandNetWorth)} className="rounded-[2.5rem] p-8 border bg-[#11151f] border-[#1e2532] shadow-2xl transition-all active:scale-[0.97] cursor-pointer">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Personal Wealth</span>
                 <span className="text-[9px] px-2 py-0.5 rounded border border-gold/30 text-gold bg-gold/5 font-black uppercase">NGN</span>
               </div>
-              <div className="text-5xl font-serif text-white tracking-tighter"><Obscure>₦{(totals.personal / 1000000).toFixed(2)}M</Obscure></div>
+              <div className="text-5xl font-serif text-white tracking-tighter">
+                <Obscure isBlurred={blurAmounts}>₦{(totals.personal / 1000000).toFixed(2)}M</Obscure>
+              </div>
               {expandNetWorth && (
                 <div className="mt-8 pt-6 border-t border-[#1e2532]/50 space-y-4 animate-in slide-in-from-top-4">
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-400"><span>Gross Inflow</span><Obscure className="text-mint">+ ₦450k</Obscure></div>
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-400"><span>Burn Rate</span><Obscure className="text-rose">- ₦15k</Obscure></div>
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-400"><span>History Snapshot</span><span className="text-mint">+ ₦450k Inflow</span></div>
                 </div>
               )}
             </div>
@@ -183,24 +189,27 @@ export default function App() {
               <div className="rounded-[2rem] p-6 border bg-fiduciary/5 border-fiduciary/20 animate-in slide-in-from-top-2">
                 <div className="flex items-center gap-2 mb-2">
                   <Shield className="w-3 h-3 text-fiduciary" />
-                  <span className="text-[9px] font-black uppercase text-fiduciary tracking-[0.2em]">Fiduciary Assets</span>
+                  <span className="text-[9px] font-black uppercase text-fiduciary tracking-[0.2em]">Managed Assets</span>
                 </div>
-                <div className="text-3xl font-serif text-white"><Obscure>₦{(totals.fiduciary / 1000000).toFixed(2)}M</Obscure></div>
+                <div className="text-3xl font-serif text-white">
+                  <Obscure isBlurred={blurAmounts}>₦{(totals.fiduciary / 1000000).toFixed(2)}M</Obscure>
+                </div>
               </div>
             )}
           </div>
 
+          {/* Audit Trail */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Audit Trail</h3>
               <button onClick={() => setShowFiduciary(!showFiduciary)} className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-full border transition-all ${showFiduciary ? 'bg-fiduciary border-fiduciary text-white' : 'border-slate-800 text-slate-600'}`}>
-                {showFiduciary ? 'Fid: ON' : 'Fid: OFF'}
+                {showFiduciary ? 'Fiduciary On' : 'Fid Off'}
               </button>
             </div>
             
             <div className="space-y-3">
               {displayedTransactions.map(tx => (
-                <div key={tx.id} onClick={() => setDeepDiveId(deepDiveId === tx.id ? null : tx.id)} className="bg-[#11151f] border border-[#1e2532] p-5 rounded-3xl active:scale-[0.98] transition-all relative overflow-hidden">
+                <div key={tx.id} onClick={() => setDeepDiveId(deepDiveId === tx.id ? null : tx.id)} className="bg-[#11151f] border border-[#1e2532] p-5 rounded-3xl active:scale-[0.98] transition-all relative overflow-hidden group cursor-pointer">
                   {tx.type === 'fiduciary' && <div className="absolute top-0 right-0 w-1 h-full bg-fiduciary" />}
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-4">
@@ -209,20 +218,22 @@ export default function App() {
                       </div>
                       <div>
                         <div className="text-[13px] font-bold text-white tracking-tight">{tx.title}</div>
-                        <div className="text-[10px] text-slate-500 font-medium mt-0.5">{tx.date}</div>
+                        <div className="text-[10px] text-slate-500 font-medium mt-0.5 uppercase tracking-widest">{tx.date}</div>
                       </div>
                     </div>
                     <div className={`text-sm font-serif font-black ${tx.flow === 'in' ? 'text-mint' : 'text-rose'}`}>
-                      <Obscure>{tx.flow === 'in' ? '+' : '-'} ₦{tx.amount.toLocaleString()}</Obscure>
+                      <Obscure isBlurred={blurAmounts}>{tx.flow === 'in' ? '+' : '-'} ₦{tx.amount.toLocaleString()}</Obscure>
                     </div>
                   </div>
                   {deepDiveId === tx.id && (
                     <div className="mt-5 pt-5 border-t border-[#1e2532]/50 flex gap-2 animate-in zoom-in-95">
-                      <button className="flex-1 py-3 bg-[#05070a] text-slate-400 text-[9px] font-black uppercase rounded-xl border border-[#1e2532] flex items-center justify-center gap-2"><Calendar className="w-3 h-3" /> {tx.date}</button>
                       <button onClick={(e) => {
                         e.stopPropagation();
                         setTransactions(transactions.filter(t => t.id !== tx.id));
-                      }} className="flex-1 py-3 bg-rose/10 text-rose text-[9px] font-black uppercase rounded-xl border border-rose/20 active:scale-95 transition-all">Delete</button>
+                        setDeepDiveId(null);
+                      }} className="flex-1 py-3 bg-rose/10 text-rose text-[9px] font-black uppercase rounded-xl border border-rose/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <Trash2 className="w-3 h-3" /> Delete Entry
+                      </button>
                     </div>
                   )}
                 </div>
@@ -231,72 +242,73 @@ export default function App() {
           </section>
         </main>
       ) : (
-        <main className="px-6 space-y-10 animate-in slide-in-from-right">
-           <section className="space-y-4 pt-4">
-              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Identity & Protection</h3>
-              <div className="bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] divide-y divide-[#1e2532]/50 overflow-hidden">
-                <div className="p-7 flex justify-between items-center">
+        <main className="px-6 pt-4 space-y-10 animate-in slide-in-from-right">
+           <section className="space-y-4">
+              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Security</h3>
+              <div className="bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] p-7 flex justify-between items-center shadow-lg">
                   <div>
                     <div className="text-sm font-bold text-white">PIN Access</div>
-                    <div className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-black">Startup Lock</div>
+                    <div className="text-[10px] text-slate-500 mt-1 uppercase font-black tracking-widest">Startup Lock</div>
                   </div>
-                  <button onClick={() => { if(appPin) setAppPin(null); else setShowPinSetup(true); }} className={`w-12 h-6 rounded-full relative transition-all ${appPin ? 'bg-mint' : 'bg-slate-800'}`}>
+                  <button onClick={() => { if(appPin) setAppPin(null); else setShowPinSetup(true); }} className={`w-12 h-6 rounded-full relative transition-all ${appPin ? 'bg-mint shadow-[0_0_15px_rgba(0,200,150,0.3)]' : 'bg-slate-800'}`}>
                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-lg transition-all ${appPin ? 'right-1' : 'left-1'}`} />
                   </button>
-                </div>
               </div>
            </section>
            
            <section className="space-y-4">
-              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Data Portability</h3>
+              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Database</h3>
               <button onClick={() => {
                 const payload = { transactions };
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
                 const dlAnchor = document.createElement('a');
                 dlAnchor.setAttribute("href", dataStr);
-                dlAnchor.setAttribute("download", `FinanceOS_Backup_${new Date().toISOString().split('T')[0]}.json`);
+                dlAnchor.setAttribute("download", `FinanceOS_Backup_${Date.now()}.json`);
                 dlAnchor.click();
               }} className="w-full p-7 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex items-center justify-between active:scale-95 transition-all group">
                 <div className="flex items-center gap-5">
-                  <div className="w-10 h-10 bg-mint/10 rounded-xl flex items-center justify-center text-mint"><Download className="w-5 h-5" /></div>
+                  <div className="w-10 h-10 bg-mint/10 rounded-xl flex items-center justify-center text-mint shadow-inner"><Download className="w-5 h-5" /></div>
                   <div className="text-sm font-bold text-white">Export Vault</div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-700 group-active:translate-x-1 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-slate-700" />
               </button>
            </section>
         </main>
       )}
 
+      {/* PIN Setup Overlay */}
       {showPinSetup && (
         <div className="fixed inset-0 z-[100] bg-[#05070a]/98 backdrop-blur-2xl flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
-           <KeyRound className="w-12 h-12 text-gold mb-8" />
+           <KeyRound className="w-12 h-12 text-gold mb-8 shadow-2xl" />
            <h2 className="text-white font-serif text-2xl mb-12 tracking-tight">Set Security PIN</h2>
-           <input type="password" inputMode="numeric" maxLength="4" autoFocus value={pinInput} onChange={(e) => setPinInput(e.target.value)} className="bg-[#11151f] border border-[#1e2532] w-56 h-20 text-center text-4xl font-bold text-white rounded-3xl tracking-[0.8em] focus:outline-none mb-12 shadow-2xl" />
-           <button onClick={() => { if(pinInput.length === 4) { setAppPin(pinInput); setShowPinSetup(false); setPinInput(''); } }} className="bg-gold text-black px-12 py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl active:scale-90 transition">Initialize Security</button>
+           <input type="password" inputMode="numeric" maxLength="4" autoFocus value={pinInput} onChange={(e) => setPinInput(e.target.value)} className="bg-[#11151f] border border-[#1e2532] w-56 h-20 text-center text-4xl font-bold text-white rounded-3xl tracking-[0.8em] focus:outline-none mb-12 shadow-2xl focus:border-gold/50 transition-colors" />
+           <button onClick={() => { if(pinInput.length === 4) { setAppPin(pinInput); setShowPinSetup(false); setPinInput(''); } }} className="bg-gold text-black px-12 py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] active:scale-95 transition">Save PIN</button>
         </div>
       )}
 
+      {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-end justify-center animate-in slide-in-from-bottom duration-500" onClick={() => setShowAddModal(false)}>
            <div className="w-full max-w-md bg-[#05070a] border-t border-[#1e2532] rounded-t-[3.5rem] p-10 pb-24 space-y-8" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center">
-                <h2 className="text-white text-3xl font-serif tracking-tight">New Entry</h2>
+              <div className="flex justify-between items-center px-2">
+                <h2 className="text-white text-3xl font-serif tracking-tight">Input Flow</h2>
                 <button onClick={() => setShowAddModal(false)} className="p-2 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500"><X className="w-5 h-5" /></button>
               </div>
               <div className="grid grid-cols-2 gap-5">
-                <button onClick={() => addTransaction('income', 'in')} className="p-8 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all">
-                  <Briefcase className="text-mint w-6 h-6" />
-                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Income</span>
+                <button onClick={() => addTransaction('income', 'in')} className="p-8 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all group">
+                   <div className="w-10 h-10 bg-mint/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Briefcase className="text-mint w-6 h-6" /></div>
+                   <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Income</span>
                 </button>
-                <button onClick={() => addTransaction('expense', 'out')} className="p-8 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all">
-                  <Utensils className="text-rose w-6 h-6" />
-                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Expense</span>
+                <button onClick={() => addTransaction('expense', 'out')} className="p-8 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all group">
+                   <div className="w-10 h-10 bg-rose/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Utensils className="text-rose w-6 h-6" /></div>
+                   <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Expense</span>
                 </button>
               </div>
            </div>
         </div>
       )}
 
+      {/* Search Overlay */}
       {isSearching && (
         <div className="fixed inset-0 z-[110] bg-[#05070a]/98 backdrop-blur-2xl flex flex-col animate-in fade-in">
           <div className="px-6 pt-16 pb-6 border-b border-[#1e2532] bg-[#11151f] flex items-center gap-4">
@@ -304,11 +316,11 @@ export default function App() {
               <Search className="w-5 h-5 text-gold" />
               <input autoFocus type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Query database..." className="w-full bg-transparent text-white text-lg focus:outline-none placeholder:text-slate-700" />
             </div>
-            <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="text-[11px] font-black uppercase text-gold px-2">Cancel</button>
+            <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="text-[11px] font-black uppercase text-gold px-2">Close</button>
           </div>
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
              {searchQuery && displayedTransactions.map(t => (
-               <div key={t.id} className="text-sm p-4 border border-[#1e2532] rounded-2xl bg-[#11151f]">
+               <div key={t.id} className="text-sm p-4 border border-[#1e2532] rounded-2xl bg-[#11151f] animate-in slide-in-from-top-2">
                  <div className="font-bold text-white tracking-tight">{t.title}</div>
                  <div className="text-[10px] text-slate-500 mt-1 uppercase font-black tracking-widest">{t.date} • ₦{t.amount.toLocaleString()}</div>
                </div>
@@ -317,8 +329,9 @@ export default function App() {
         </div>
       )}
 
+      {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto px-12 py-8 bg-[#05070a]/95 backdrop-blur-3xl border-t border-[#1e2532] flex justify-between items-center z-40">
-        <button onClick={() => setView('home')} className={`flex flex-col items-center gap-2 transition-all ${view === 'home' ? 'text-mint scale-110' : 'text-slate-700'}`}>
+        <button onClick={() => setView('home')} className={`flex flex-col items-center gap-2 transition-all ${view === 'home' ? 'text-mint scale-110' : 'text-slate-700 hover:text-white'}`}>
           <Home className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-widest">Vault</span>
         </button>
@@ -327,7 +340,7 @@ export default function App() {
           <Plus className="w-9 h-9 stroke-[3]" />
         </button>
         
-        <button onClick={() => setView('menu')} className={`flex flex-col items-center gap-2 transition-all ${view === 'menu' ? 'text-mint scale-110' : 'text-slate-700'}`}>
+        <button onClick={() => setView('menu')} className={`flex flex-col items-center gap-2 transition-all ${view === 'menu' ? 'text-mint scale-110' : 'text-slate-700 hover:text-white'}`}>
           <MoreHorizontal className="w-6 h-6" />
           <span className="text-[8px] font-black uppercase tracking-widest">Settings</span>
         </button>
@@ -335,3 +348,10 @@ export default function App() {
     </div>
   );
 }
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

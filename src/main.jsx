@@ -7,7 +7,8 @@ import {
   KeyRound, Shield, Eye, EyeOff, X, Calendar, Trash2
 } from 'lucide-react';
 
-// --- Persistent Storage Hook ---
+// --- Persistent Storage Engine ---
+// This ensures your data survives refreshes and "Add to Home Screen" launches.
 function useLocalStorage(key, initialValue) {
   const [storedValue, setStoredValue] = useState(() => {
     try {
@@ -127,7 +128,7 @@ function App() {
 
   if (isLocked) {
     return (
-      <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-center p-8">
+      <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
         <div className="w-16 h-16 rounded-3xl flex items-center justify-center mb-12 shadow-2xl" style={{ background: `linear-gradient(135deg, ${COLORS.gold}, #8a6d2d)` }}>
           <Lock className="text-black w-7 h-7" />
         </div>
@@ -173,7 +174,7 @@ function App() {
             <div onClick={() => setExpandNetWorth(!expandNetWorth)} className="rounded-[2.5rem] p-8 border bg-[#11151f] border-[#1e2532] shadow-2xl transition-all active:scale-[0.97] cursor-pointer">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Personal Wealth</span>
-                <span className="text-[9px] px-2 py-0.5 rounded border border-gold/30 text-gold bg-gold/5 font-black uppercase">NGN</span>
+                <span className="text-[9px] px-2 py-0.5 rounded border border-gold/30 text-gold bg-gold/5 font-black uppercase tracking-widest">NGN</span>
               </div>
               <div className="text-5xl font-serif text-white tracking-tighter">
                 <Obscure isBlurred={blurAmounts}>₦{(totals.personal / 1000000).toFixed(2)}M</Obscure>
@@ -210,7 +211,7 @@ function App() {
             <div className="space-y-3">
               {displayedTransactions.map(tx => (
                 <div key={tx.id} onClick={() => setDeepDiveId(deepDiveId === tx.id ? null : tx.id)} className="bg-[#11151f] border border-[#1e2532] p-5 rounded-3xl active:scale-[0.98] transition-all relative overflow-hidden group cursor-pointer">
-                  {tx.type === 'fiduciary' && <div className="absolute top-0 right-0 w-1 h-full bg-fiduciary" />}
+                  {tx.type === 'fiduciary' && <div className="absolute top-0 right-0 w-1 h-full bg-fiduciary shadow-[0_0_15px_rgba(139,92,246,0.3)]" />}
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-4">
                       <div className="w-11 h-11 rounded-2xl bg-[#05070a] flex items-center justify-center border border-[#1e2532] shadow-inner">
@@ -263,14 +264,14 @@ function App() {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
                 const dlAnchor = document.createElement('a');
                 dlAnchor.setAttribute("href", dataStr);
-                dlAnchor.setAttribute("download", `FinanceOS_Backup_${Date.now()}.json`);
+                dlAnchor.setAttribute("download", `FinanceOS_Backup_${new Date().toISOString().split('T')[0]}.json`);
                 dlAnchor.click();
               }} className="w-full p-7 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex items-center justify-between active:scale-95 transition-all group">
                 <div className="flex items-center gap-5">
                   <div className="w-10 h-10 bg-mint/10 rounded-xl flex items-center justify-center text-mint shadow-inner"><Download className="w-5 h-5" /></div>
                   <div className="text-sm font-bold text-white">Export Vault</div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-700" />
+                <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-white transition-colors" />
               </button>
            </section>
         </main>

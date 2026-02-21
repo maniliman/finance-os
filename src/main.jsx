@@ -1,24 +1,32 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { 
-  Plus, Search, Home, MoreHorizontal, 
-  Wallet, Briefcase, Utensils, Lock,
-  ChevronRight, Download, KeyRound, 
-  Shield, Eye, EyeOff, X, Calendar, Trash2
+  Plus, Search, Home, MoreHorizontal, Wallet, Briefcase, 
+  Utensils, Lock, ChevronRight, Download, KeyRound, 
+  Shield, Eye, EyeOff, X, Calendar, Trash2, TrendingUp, 
+  Fingerprint, CreditCard, Activity, ArrowUpRight, ArrowDownLeft
 } from 'lucide-react';
 
-/**
- * CUSTOM PERSISTENCE HOOK
- * Saves your data directly to your phone's memory.
- */
+// --- THEME DEFINITIONS ---
+const THEME = {
+  bg: '#05070a',         
+  surface: '#0f1218',    
+  border: '#1e2532',
+  gold: '#c5a059',       
+  mint: '#10b981',       
+  rose: '#ef4444',
+  fiduciary: '#8b5cf6',
+  textMain: '#ffffff',
+  textMuted: '#64748b'
+};
+
+// --- DATA PERSISTENCE ---
 function useLocalStorage(key, initialValue) {
   const [storedValue, setStoredValue] = useState(() => {
     try {
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      return initialValue;
-    }
+    } catch (error) { return initialValue; }
   });
 
   const setValue = (value) => {
@@ -28,229 +36,246 @@ function useLocalStorage(key, initialValue) {
       window.localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {}
   };
-
   return [storedValue, setValue];
 }
 
-const COLORS = {
-  bg: '#05070a',         
-  surface: '#11151f',    
-  border: '#1e2532',
-  gold: '#c5a059',       
-  mint: '#00c896',       
-  rose: '#991b1b',
-  fiduciary: '#8b5cf6'
-};
-
-const Obscure = ({ children, isBlurred, className = '' }) => (
-  <span className={`transition-all duration-500 ${isBlurred ? 'blur-[12px] opacity-20' : ''} ${className}`}>
+// --- UI COMPONENTS ---
+const Obscure = ({ children, isBlurred }) => (
+  <span className={`transition-all duration-700 ease-in-out ${isBlurred ? 'blur-xl opacity-20 select-none scale-95' : 'blur-0 opacity-100'}`}>
     {children}
   </span>
 );
 
 function App() {
-  // Navigation & UI State
   const [view, setView] = useState('home'); 
   const [showAddModal, setShowAddModal] = useState(false); 
-  const [deepDiveId, setDeepDiveId] = useState(null);
-  const [expandNetWorth, setExpandNetWorth] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Persistent Database
-  const [blurAmounts, setBlurAmounts] = useLocalStorage('fos_blur', false);
-  const [showFiduciary, setShowFiduciary] = useLocalStorage('fos_showFid', false);
-  const [appPin, setAppPin] = useLocalStorage('fos_pin_code', null);
-  const [transactions, setTransactions] = useLocalStorage('fos_vault', [
-    { id: 1, date: 'Feb 21, 2026', title: 'Salary Credit', type: 'income', amount: 450000, flow: 'in', note: 'Monthly Net' },
-    { id: 2, date: 'Feb 20, 2026', title: 'Grocery Shopping', type: 'expense', amount: 15000, flow: 'out', note: 'Weekly Restock' },
-    { id: 3, date: 'Feb 19, 2026', title: 'Trust Allocation', type: 'fiduciary', amount: 200000, flow: 'in', note: 'Managed Fund' }
+  const [activeTxId, setActiveTxId] = useState(null);
+  
+  const [blurMode, setBlurMode] = useLocalStorage('fos_v3_blur', false);
+  const [fidMode, setFidMode] = useLocalStorage('fos_v3_fid', false);
+  const [appPin, setAppPin] = useLocalStorage('fos_v3_pin', null);
+  
+  const [transactions, setTransactions] = useLocalStorage('fos_v3_vault', [
+    { id: 1, date: 'Feb 21, 2026', title: 'Executive Dividends', type: 'income', amount: 1250000, flow: 'in', note: 'Q1 Payout' },
+    { id: 2, date: 'Feb 20, 2026', title: 'Bespoke Tailoring', type: 'expense', amount: 85000, flow: 'out', note: 'Savile Row' },
+    { id: 3, date: 'Feb 19, 2026', title: 'Offshore Trust', type: 'fiduciary', amount: 5000000, flow: 'in', note: 'Cayman Allocation' }
   ]);
 
-  // Security Logic
   const [isLocked, setIsLocked] = useState(!!appPin);
   const [pinInput, setPinInput] = useState('');
   const [showPinSetup, setShowPinSetup] = useState(false);
 
-  const handlePinPad = (num) => {
+  // Math
+  const totals = useMemo(() => {
+    const calc = (list) => list.reduce((acc, t) => acc + (t.flow === 'in' ? t.amount : -t.amount), 0);
+    return {
+      personal: calc(transactions.filter(t => t.type !== 'fiduciary')),
+      fiduciary: calc(transactions.filter(t => t.type === 'fiduciary'))
+    };
+  }, [transactions]);
+
+  const sortedTxs = useMemo(() => {
+    return transactions
+      .filter(t => fidMode ? true : t.type !== 'fiduciary')
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [transactions, fidMode]);
+
+  const handlePinAction = (n) => {
     if (pinInput.length < 4) {
-      const next = pinInput + num;
+      const next = pinInput + n;
       setPinInput(next);
       if (next.length === 4) {
         if (next === appPin) {
           setIsLocked(false);
           setPinInput('');
         } else {
-          // Visual feedback for wrong PIN
-          setTimeout(() => setPinInput(''), 400);
+          setTimeout(() => setPinInput(''), 300);
         }
       }
     }
   };
 
-  // Financial Calculations
-  const totals = useMemo(() => {
-    const personal = transactions.filter(t => t.type !== 'fiduciary');
-    const fid = transactions.filter(t => t.type === 'fiduciary');
-    const sum = (list) => list.reduce((acc, t) => acc + (t.flow === 'in' ? (Number(t.amount) || 0) : -(Number(t.amount) || 0)), 0);
-    return { personal: sum(personal), fiduciary: sum(fid) };
-  }, [transactions]);
-
-  const displayedTransactions = useMemo(() => {
-    let list = transactions.filter(t => showFiduciary ? true : t.type !== 'fiduciary');
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(t => 
-        t.title.toLowerCase().includes(q) || 
-        (t.note && t.note.toLowerCase().includes(q))
-      );
-    }
-    return list.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [transactions, showFiduciary, searchQuery]);
-
-  const addTransaction = (type, flow) => {
-    const title = prompt(`Enter title for this ${type}:`);
+  const createEntry = (type, flow) => {
+    const title = prompt(`Entry Title:`);
     if (!title) return;
-    const amountStr = prompt(`Enter amount in NGN:`);
-    const amount = parseInt(amountStr?.replace(/[^0-9]/g, ''));
+    const val = prompt(`Amount (NGN):`);
+    const amount = parseInt(val?.replace(/[^0-9]/g, ''));
     if (!amount) return;
 
-    const newTx = {
+    const entry = {
       id: Date.now(),
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      title,
-      type,
-      amount,
-      flow,
-      note: 'Manual Entry'
+      title, type, amount, flow, note: 'Direct Entry'
     };
-
-    setTransactions([newTx, ...transactions]);
+    setTransactions([entry, ...transactions]);
     setShowAddModal(false);
   };
 
-  // -------------------------------------------------------------------------
-  // SECURITY OVERLAY (PIN LOCK)
-  // -------------------------------------------------------------------------
   if (isLocked) {
     return (
-      <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-center p-8">
-        <div className="w-16 h-16 rounded-3xl flex items-center justify-center mb-12 shadow-2xl" style={{ background: `linear-gradient(135deg, ${COLORS.gold}, #8a6d2d)` }}>
-          <Lock className="text-black w-7 h-7" />
+      <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-between py-20 px-10">
+        <div className="flex flex-col items-center">
+          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-[#c5a059] to-[#8a6d2d] flex items-center justify-center shadow-[0_20px_50px_rgba(197,160,89,0.3)] mb-8">
+            <Fingerprint className="text-black w-10 h-10" />
+          </div>
+          <h2 className="text-white font-serif text-2xl tracking-tight">System Locked</h2>
+          <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em] mt-2">Biometric or PIN Required</p>
         </div>
-        <div className="flex gap-6 mb-20">
-          {[0,1,2,3].map(i => (
-            <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 ${pinInput.length > i ? 'bg-gold border-gold scale-125' : 'border-slate-800'}`} />
-          ))}
-        </div>
-        <div className="grid grid-cols-3 gap-8">
-          {[1,2,3,4,5,6,7,8,9].map(n => (
-            <button key={n} onClick={() => handlePinPad(n)} className="w-16 h-16 rounded-full bg-[#11151f] border border-[#1e2532] text-xl font-bold text-white active:bg-gold active:text-black transition-all">{n}</button>
-          ))}
-          <div />
-          <button onClick={() => handlePinPad(0)} className="w-16 h-16 rounded-full bg-[#11151f] border border-[#1e2532] text-xl font-bold text-white active:bg-gold active:text-black transition-all">0</button>
-          <button onClick={() => setPinInput('')} className="text-[10px] font-black uppercase text-slate-600">CLR</button>
+
+        <div className="w-full max-w-xs">
+          <div className="flex justify-center gap-5 mb-16">
+            {[0,1,2,3].map(i => (
+              <div key={i} className={`w-3 h-3 rounded-full border border-slate-800 transition-all duration-300 ${pinInput.length > i ? 'bg-[#c5a059] border-[#c5a059] scale-125 shadow-[0_0_15px_#c5a059]' : ''}`} />
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-6">
+            {[1,2,3,4,5,6,7,8,9].map(n => (
+              <button key={n} onClick={() => handlePinAction(n)} className="w-16 h-16 rounded-2xl bg-[#0f1218] border border-[#1e2532] text-xl font-bold text-white active:bg-[#c5a059] active:text-black transition-all">{n}</button>
+            ))}
+            <div />
+            <button onClick={() => handlePinAction(0)} className="w-16 h-16 rounded-2xl bg-[#0f1218] border border-[#1e2532] text-xl font-bold text-white active:bg-[#c5a059] active:text-black transition-all">0</button>
+            <button onClick={() => setPinInput('')} className="flex items-center justify-center text-[#c5a059] font-black text-[10px] uppercase">Clear</button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // -------------------------------------------------------------------------
-  // MAIN DASHBOARD UI
-  // -------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans pb-32 selection:bg-gold/30">
+    <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans pb-32 overflow-x-hidden">
       
-      {/* HEADER */}
-      <header className="flex items-center justify-between px-6 pt-12 pb-6 sticky top-0 z-30 bg-[#05070a]/90 backdrop-blur-xl border-b border-[#1e2532]/30">
+      {/* --- STATUS BAR & HEADER --- */}
+      <header className="px-6 pt-14 pb-6 sticky top-0 z-40 bg-[#05070a]/80 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg" style={{ background: `linear-gradient(135deg, ${COLORS.gold}, #8a6d2d)` }}>
-            <Wallet className="text-black w-4 h-4" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#c5a059] to-[#ecd4a5] flex items-center justify-center shadow-lg">
+            <Wallet className="text-black w-5 h-5" />
           </div>
-          <h1 className="text-lg font-bold text-white tracking-tight">FinanceOS</h1>
+          <div>
+            <h1 className="text-sm font-black text-white tracking-tighter uppercase">FinanceOS</h1>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Vault Encrypted</span>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setBlurAmounts(!blurAmounts)} className="p-2.5 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500 active:scale-95 transition-all">
-            {blurAmounts ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        <div className="flex gap-2">
+          <button onClick={() => setBlurMode(!blurMode)} className="w-10 h-10 rounded-full bg-[#0f1218] border border-[#1e2532] flex items-center justify-center text-slate-400 active:scale-90 transition-all">
+            {blurMode ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          <button onClick={() => setIsSearching(true)} className="p-2.5 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500 active:scale-95 transition-all">
-            <Search className="w-4 h-4" />
+          <button className="w-10 h-10 rounded-full bg-[#0f1218] border border-[#1e2532] flex items-center justify-center text-slate-400 active:scale-90 transition-all">
+            <Search size={16} />
           </button>
         </div>
       </header>
 
       {view === 'home' ? (
-        <main className="px-6 space-y-8 animate-in fade-in duration-500">
+        <main className="p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
           
-          {/* NET WORTH CARD */}
-          <div className="space-y-4">
-            <div onClick={() => setExpandNetWorth(!expandNetWorth)} className="rounded-[2.5rem] p-8 border bg-[#11151f] border-[#1e2532] shadow-2xl transition-all active:scale-[0.97] cursor-pointer">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Personal Wealth</span>
-                <span className="text-[9px] px-2 py-0.5 rounded border border-gold/30 text-gold bg-gold/5 font-black uppercase tracking-widest">NGN</span>
+          {/* --- PERSONAL WEALTH CARD --- */}
+          <section className="relative group">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#c5a059]/20 to-transparent blur-3xl opacity-30 -z-10" />
+            <div className="bg-[#0f1218] border border-[#1e2532] rounded-[2.5rem] p-8 shadow-2xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-8">
+                <TrendingUp className="text-[#c5a059]/20 w-16 h-16 -rotate-12" />
               </div>
-              <div className="text-5xl font-serif text-white tracking-tighter">
-                <Obscure isBlurred={blurAmounts}>₦{(totals.personal / 1000000).toFixed(2)}M</Obscure>
+              
+              <div className="flex justify-between items-center mb-6">
+                <span className="text-[10px] font-black text-[#c5a059] uppercase tracking-[0.3em] bg-[#c5a059]/10 px-3 py-1 rounded-full border border-[#c5a059]/20">Net Capital</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">NGN Vault</span>
               </div>
-              {expandNetWorth && (
-                <div className="mt-8 pt-6 border-t border-[#1e2532]/50 space-y-4 animate-in slide-in-from-top-4">
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-400">
-                    <span>Account Health</span>
-                    <span className="text-mint uppercase tracking-tighter font-black">Verified</span>
+
+              <div className="relative">
+                <div className="text-5xl font-serif text-white tracking-tighter flex items-baseline gap-1">
+                  <span className="text-2xl text-[#c5a059]">₦</span>
+                  <Obscure isBlurred={blurMode}>
+                    {(totals.personal / 1000000).toFixed(2)}<span className="text-3xl opacity-50">M</span>
+                  </Obscure>
+                </div>
+                <div className="mt-6 flex items-center gap-4">
+                  <div className="flex items-center gap-1.5 text-mint text-[10px] font-black uppercase tracking-tighter">
+                    <ArrowUpRight size={12} /> +12.4% <span className="text-slate-600 font-normal">MTD</span>
+                  </div>
+                  <div className="w-[1px] h-3 bg-slate-800" />
+                  <div className="text-slate-500 text-[10px] font-black uppercase tracking-tighter">
+                    Liquid Assets
                   </div>
                 </div>
-              )}
+              </div>
             </div>
+          </section>
 
-            {showFiduciary && (
-              <div className="rounded-[2rem] p-6 border bg-fiduciary/5 border-fiduciary/20 animate-in slide-in-from-top-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Shield className="w-3 h-3 text-fiduciary" />
-                  <span className="text-[9px] font-black uppercase text-fiduciary tracking-[0.2em]">Managed Assets</span>
+          {/* --- FIDUCIARY INDICATOR --- */}
+          {fidMode && (
+            <div className="bg-[#8b5cf6]/5 border border-[#8b5cf6]/20 rounded-3xl p-6 flex items-center justify-between animate-in slide-in-from-top-2">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-[#8b5cf6]/10 flex items-center justify-center text-[#8b5cf6]">
+                  <Shield size={20} />
                 </div>
-                <div className="text-3xl font-serif text-white">
-                  <Obscure isBlurred={blurAmounts}>₦{(totals.fiduciary / 1000000).toFixed(2)}M</Obscure>
+                <div>
+                  <p className="text-[10px] font-black text-[#8b5cf6] uppercase tracking-widest">Fiduciary Holdings</p>
+                  <p className="text-xl font-serif text-white tracking-tight mt-0.5">
+                    <Obscure isBlurred={blurMode}>₦{(totals.fiduciary / 1000000).toFixed(2)}M</Obscure>
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
+              <Activity className="text-[#8b5cf6]/30 w-5 h-5 animate-pulse" />
+            </div>
+          )}
 
-          {/* AUDIT TRAIL */}
+          {/* --- AUDIT TRAIL (TRANSACTIONS) --- */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Audit Trail</h3>
-              <button onClick={() => setShowFiduciary(!showFiduciary)} className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-full border transition-all ${showFiduciary ? 'bg-fiduciary border-fiduciary text-white shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'border-slate-800 text-slate-600'}`}>
-                {showFiduciary ? 'Fiduciary On' : 'Fid Off'}
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">Operational Log</h3>
+              <button 
+                onClick={() => setFidMode(!fidMode)}
+                className={`text-[8px] font-black uppercase px-3 py-1.5 rounded-full border transition-all ${fidMode ? 'bg-[#8b5cf6] border-[#8b5cf6] text-white' : 'border-[#1e2532] text-slate-500'}`}
+              >
+                Fiduciary: {fidMode ? 'Engaged' : 'Hidden'}
               </button>
             </div>
-            
+
             <div className="space-y-3">
-              {displayedTransactions.map(tx => (
-                <div key={tx.id} onClick={() => setDeepDiveId(deepDiveId === tx.id ? null : tx.id)} className="bg-[#11151f] border border-[#1e2532] p-5 rounded-3xl active:scale-[0.98] transition-all relative overflow-hidden group cursor-pointer">
-                  {tx.type === 'fiduciary' && <div className="absolute top-0 right-0 w-1 h-full bg-fiduciary" />}
-                  <div className="flex justify-between items-center">
+              {sortedTxs.map(tx => (
+                <div 
+                  key={tx.id} 
+                  onClick={() => setActiveTxId(activeTxId === tx.id ? null : tx.id)}
+                  className="bg-[#0f1218] border border-[#1e2532] rounded-[2rem] p-5 active:scale-[0.98] transition-all relative overflow-hidden group cursor-pointer"
+                >
+                  {tx.type === 'fiduciary' && <div className="absolute top-0 right-0 w-1.5 h-full bg-[#8b5cf6]" />}
+                  
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-11 h-11 rounded-2xl bg-[#05070a] flex items-center justify-center border border-[#1e2532] shadow-inner">
-                        {tx.type === 'income' ? <Briefcase className="w-5 h-5 text-mint" /> : tx.type === 'fiduciary' ? <Shield className="w-5 h-5 text-fiduciary" /> : <Utensils className="w-5 h-5 text-rose" />}
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border border-[#1e2532] ${tx.flow === 'in' ? 'bg-mint/5' : 'bg-rose/5'}`}>
+                        {tx.flow === 'in' ? <ArrowDownLeft size={20} className="text-mint" /> : <ArrowUpRight size={20} className="text-rose" />}
                       </div>
                       <div>
-                        <div className="text-[13px] font-bold text-white tracking-tight">{tx.title}</div>
-                        <div className="text-[10px] text-slate-500 font-medium mt-0.5 uppercase tracking-widest">{tx.date}</div>
+                        <p className="text-sm font-bold text-white tracking-tight group-hover:text-[#c5a059] transition-colors">{tx.title}</p>
+                        <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-0.5">{tx.date} • {tx.type}</p>
                       </div>
                     </div>
-                    <div className={`text-sm font-serif font-black ${tx.flow === 'in' ? 'text-mint' : 'text-rose'}`}>
-                      <Obscure isBlurred={blurAmounts}>{tx.flow === 'in' ? '+' : '-'} ₦{tx.amount.toLocaleString()}</Obscure>
+                    <div className="text-right">
+                      <p className={`text-sm font-serif font-black ${tx.flow === 'in' ? 'text-mint' : 'text-white opacity-80'}`}>
+                        <Obscure isBlurred={blurMode}>
+                          {tx.flow === 'in' ? '+' : '-'}₦{tx.amount.toLocaleString()}
+                        </Obscure>
+                      </p>
                     </div>
                   </div>
-                  {deepDiveId === tx.id && (
-                    <div className="mt-5 pt-5 border-t border-[#1e2532]/50 flex gap-2 animate-in zoom-in-95">
-                      <button onClick={(e) => {
-                        e.stopPropagation();
-                        setTransactions(transactions.filter(t => t.id !== tx.id));
-                        setDeepDiveId(null);
-                      }} className="flex-1 py-3 bg-rose/10 text-rose text-[9px] font-black uppercase rounded-xl border border-rose/20 active:scale-95 transition-all flex items-center justify-center gap-2">
-                        <Trash2 className="w-3 h-3" /> Delete Entry
-                      </button>
+
+                  {activeTxId === tx.id && (
+                    <div className="mt-6 pt-5 border-t border-white/5 flex gap-2 animate-in slide-in-from-top-2">
+                       <button className="flex-1 h-12 rounded-2xl bg-[#05070a] border border-[#1e2532] flex items-center justify-center gap-2 text-[9px] font-black uppercase text-slate-400">
+                          <Download size={12} /> Receipt
+                       </button>
+                       <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTransactions(transactions.filter(t => t.id !== tx.id));
+                        }}
+                        className="flex-1 h-12 rounded-2xl bg-rose/10 border border-rose/20 flex items-center justify-center gap-2 text-[9px] font-black uppercase text-rose"
+                       >
+                          <Trash2 size={12} /> Purge
+                       </button>
                     </div>
                   )}
                 </div>
@@ -259,116 +284,128 @@ function App() {
           </section>
         </main>
       ) : (
-        /* SETTINGS VIEW */
-        <main className="px-6 pt-4 space-y-10 animate-in slide-in-from-right">
-           <section className="space-y-4">
-              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Security</h3>
-              <div className="bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] p-7 flex justify-between items-center shadow-lg">
-                  <div>
-                    <div className="text-sm font-bold text-white">PIN Access</div>
-                    <div className="text-[10px] text-slate-500 mt-1 uppercase font-black tracking-widest">Startup Lock</div>
-                  </div>
-                  <button onClick={() => { if(appPin) setAppPin(null); else setShowPinSetup(true); }} className={`w-12 h-6 rounded-full relative transition-all ${appPin ? 'bg-mint shadow-[0_0_15px_rgba(0,200,150,0.3)]' : 'bg-slate-800'}`}>
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-lg transition-all ${appPin ? 'right-1' : 'left-1'}`} />
-                  </button>
-              </div>
-           </section>
-           
-           <section className="space-y-4">
-              <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Database</h3>
-              <button onClick={() => {
-                const payload = { transactions };
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
-                const dlAnchor = document.createElement('a');
-                dlAnchor.setAttribute("href", dataStr);
-                dlAnchor.setAttribute("download", `FinanceOS_Backup_${Date.now()}.json`);
-                dlAnchor.click();
-              }} className="w-full p-7 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex items-center justify-between active:scale-95 transition-all group">
+        /* --- SETTINGS VIEW --- */
+        <main className="p-6 space-y-10 animate-in slide-in-from-right duration-500">
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Security Protocol</h3>
+            <div className="bg-[#0f1218] border border-[#1e2532] rounded-[2.5rem] divide-y divide-white/5 overflow-hidden shadow-2xl">
+              <div className="p-8 flex items-center justify-between">
                 <div className="flex items-center gap-5">
-                  <div className="w-10 h-10 bg-mint/10 rounded-xl flex items-center justify-center text-mint shadow-inner"><Download className="w-5 h-5" /></div>
-                  <div className="text-sm font-bold text-white">Export Vault</div>
+                  <div className="w-12 h-12 rounded-2xl bg-[#c5a059]/10 flex items-center justify-center text-[#c5a059]">
+                    <KeyRound size={20} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">Startup PIN</p>
+                    <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Biometric Bypass Disabled</p>
+                  </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-white transition-colors" />
-              </button>
-           </section>
+                <button 
+                  onClick={() => { if(appPin) setAppPin(null); else setShowPinSetup(true); }}
+                  className={`w-12 h-6 rounded-full relative transition-all duration-500 ${appPin ? 'bg-mint' : 'bg-slate-800'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${appPin ? 'right-1' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Asset Data</h3>
+            <button 
+              onClick={() => {
+                const data = JSON.stringify({ transactions, totals }, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `FO_VAULT_${Date.now()}.json`;
+                link.click();
+              }}
+              className="w-full p-8 bg-[#0f1218] border border-[#1e2532] rounded-[2.5rem] flex items-center justify-between shadow-2xl active:scale-95 transition-all group"
+            >
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 rounded-2xl bg-mint/10 flex items-center justify-center text-mint">
+                  <Download size={20} />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-white">Export Vault JSON</p>
+                  <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Local Encrypted Backup</p>
+                </div>
+              </div>
+              <ChevronRight className="text-slate-800 group-hover:text-white transition-colors" />
+            </button>
+          </section>
         </main>
       )}
 
-      {/* OVERLAYS: PIN SETUP, ADD MODAL, SEARCH */}
+      {/* --- OVERLAYS: PIN SETUP & ADD ENTRY --- */}
       {showPinSetup && (
-        <div className="fixed inset-0 z-[100] bg-[#05070a]/98 backdrop-blur-2xl flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
-           <KeyRound className="w-12 h-12 text-gold mb-8 shadow-2xl" />
-           <h2 className="text-white font-serif text-2xl mb-12 tracking-tight">Set Security PIN</h2>
-           <input type="password" inputMode="numeric" maxLength="4" autoFocus value={pinInput} onChange={(e) => setPinInput(e.target.value)} className="bg-[#11151f] border border-[#1e2532] w-56 h-20 text-center text-4xl font-bold text-white rounded-3xl tracking-[0.8em] focus:outline-none mb-12 shadow-2xl focus:border-gold/50 transition-colors" />
-           <button onClick={() => { if(pinInput.length === 4) { setAppPin(pinInput); setShowPinSetup(false); setPinInput(''); } }} className="bg-gold text-black px-12 py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] active:scale-95 transition">Save PIN</button>
+        <div className="fixed inset-0 z-[100] bg-[#05070a]/98 backdrop-blur-3xl flex flex-col items-center justify-center p-8">
+           <div className="w-16 h-16 rounded-[1.5rem] bg-[#c5a059] flex items-center justify-center mb-8 shadow-2xl">
+              <KeyRound className="text-black" />
+           </div>
+           <h2 className="text-white font-serif text-2xl mb-12">Set System PIN</h2>
+           <input 
+            type="password" inputMode="numeric" maxLength="4" autoFocus
+            value={pinInput} onChange={(e) => setPinInput(e.target.value)}
+            className="bg-[#0f1218] border border-[#1e2532] w-52 h-20 text-center text-4xl font-bold text-white rounded-[2rem] tracking-[0.6em] focus:outline-none focus:border-[#c5a059] mb-12 shadow-2xl" 
+           />
+           <button 
+            onClick={() => { if(pinInput.length === 4) { setAppPin(pinInput); setShowPinSetup(false); setPinInput(''); } }}
+            className="bg-[#c5a059] text-black px-12 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-2xl active:scale-90 transition-all"
+           >
+              Initialize Vault
+           </button>
         </div>
       )}
 
       {showAddModal && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-end justify-center animate-in slide-in-from-bottom duration-500" onClick={() => setShowAddModal(false)}>
-           <div className="w-full max-w-md bg-[#05070a] border-t border-[#1e2532] rounded-t-[3.5rem] p-10 pb-24 space-y-8" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center px-2">
-                <h2 className="text-white text-3xl font-serif tracking-tight">Input Flow</h2>
-                <button onClick={() => setShowAddModal(false)} className="p-2 bg-[#11151f] rounded-full border border-[#1e2532] text-slate-500"><X className="w-5 h-5" /></button>
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex items-end justify-center" onClick={() => setShowAddModal(false)}>
+           <div className="w-full max-w-md bg-[#05070a] border-t border-[#1e2532] rounded-t-[3.5rem] p-10 pb-20 space-y-10 animate-in slide-in-from-bottom duration-500" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center">
+                <h2 className="text-white text-3xl font-serif">Input Capital</h2>
+                <button onClick={() => setShowAddModal(false)} className="w-10 h-10 rounded-full bg-[#0f1218] border border-[#1e2532] flex items-center justify-center text-slate-500">
+                  <X size={18} />
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-5">
-                <button onClick={() => addTransaction('income', 'in')} className="p-8 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all group">
-                   <div className="w-10 h-10 bg-mint/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Briefcase className="text-mint w-6 h-6" /></div>
-                   <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Income</span>
+                <button onClick={() => createEntry('income', 'in')} className="p-8 bg-[#0f1218] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all">
+                  <ArrowDownLeft size={24} className="text-mint" />
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Credit</span>
                 </button>
-                <button onClick={() => addTransaction('expense', 'out')} className="p-8 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all group">
-                   <div className="w-10 h-10 bg-rose/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Utensils className="text-rose w-6 h-6" /></div>
-                   <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Expense</span>
+                <button onClick={() => createEntry('expense', 'out')} className="p-8 bg-[#0f1218] border border-[#1e2532] rounded-[2.5rem] flex flex-col items-center gap-4 active:scale-90 transition-all">
+                  <ArrowUpRight size={24} className="text-rose" />
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Debit</span>
                 </button>
               </div>
+              <button onClick={() => createEntry('fiduciary', 'in')} className="w-full p-6 bg-[#8b5cf6]/5 border border-[#8b5cf6]/20 rounded-3xl flex items-center justify-center gap-3 active:scale-95 transition-all">
+                <Shield size={18} className="text-[#8b5cf6]" />
+                <span className="text-[10px] font-black uppercase text-[#8b5cf6] tracking-widest">Managed Entry</span>
+              </button>
            </div>
         </div>
       )}
 
-      {isSearching && (
-        <div className="fixed inset-0 z-[110] bg-[#05070a]/98 backdrop-blur-2xl flex flex-col animate-in fade-in">
-          <div className="px-6 pt-16 pb-6 border-b border-[#1e2532] bg-[#11151f] flex items-center gap-4">
-            <div className="flex-1 flex items-center gap-4 bg-[#05070a] border border-[#1e2532] rounded-3xl px-5 py-4 shadow-inner">
-              <Search className="w-5 h-5 text-gold" />
-              <input autoFocus type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Query database..." className="w-full bg-transparent text-white text-lg focus:outline-none placeholder:text-slate-700" />
-            </div>
-            <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="text-[11px] font-black uppercase text-gold px-2">Close</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-3">
-             {searchQuery && displayedTransactions.map(t => (
-               <div key={t.id} className="text-sm p-4 border border-[#1e2532] rounded-2xl bg-[#11151f] animate-in slide-in-from-top-2">
-                 <div className="font-bold text-white tracking-tight">{t.title}</div>
-                 <div className="text-[10px] text-slate-500 mt-1 uppercase font-black tracking-widest">{t.date} • ₦{t.amount.toLocaleString()}</div>
-               </div>
-             ))}
-          </div>
-        </div>
-      )}
-
-      {/* BOTTOM NAV */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto px-12 py-8 bg-[#05070a]/95 backdrop-blur-3xl border-t border-[#1e2532] flex justify-between items-center z-40">
-        <button onClick={() => setView('home')} className={`flex flex-col items-center gap-2 transition-all ${view === 'home' ? 'text-mint scale-110' : 'text-slate-700 hover:text-white'}`}>
-          <Home className="w-6 h-6" />
+      {/* --- BOTTOM NAVIGATION --- */}
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto px-10 py-8 bg-[#05070a]/90 backdrop-blur-3xl border-t border-white/5 flex justify-between items-center z-50">
+        <button onClick={() => setView('home')} className={`flex flex-col items-center gap-2 transition-all ${view === 'home' ? 'text-[#c5a059] scale-110' : 'text-slate-700 hover:text-slate-400'}`}>
+          <Home size={24} />
           <span className="text-[8px] font-black uppercase tracking-widest">Vault</span>
         </button>
         
-        <button onClick={() => setShowAddModal(true)} className="w-16 h-16 rounded-full bg-mint flex items-center justify-center text-black shadow-lg active:scale-90 transition-all -translate-y-6">
-          <Plus className="w-9 h-9 stroke-[3]" />
+        <button onClick={() => setShowAddModal(true)} className="w-16 h-16 rounded-full bg-[#c5a059] flex items-center justify-center text-black shadow-[0_10px_40px_rgba(197,160,89,0.3)] active:scale-90 transition-all -translate-y-8">
+          <Plus size={32} strokeWidth={3} />
         </button>
         
-        <button onClick={() => setView('menu')} className={`flex flex-col items-center gap-2 transition-all ${view === 'menu' ? 'text-mint scale-110' : 'text-slate-700 hover:text-white'}`}>
-          <MoreHorizontal className="w-6 h-6" />
-          <span className="text-[8px] font-black uppercase tracking-widest">Settings</span>
+        <button onClick={() => setView('menu')} className={`flex flex-col items-center gap-2 transition-all ${view === 'menu' ? 'text-[#c5a059] scale-110' : 'text-slate-700 hover:text-slate-400'}`}>
+          <MoreHorizontal size={24} />
+          <span className="text-[8px] font-black uppercase tracking-widest">Protocols</span>
         </button>
       </nav>
     </div>
   );
 }
 
-// RENDER APP
+// BOOTSTRAP
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+root.render(<React.StrictMode><App /></React.StrictMode>);

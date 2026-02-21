@@ -3,12 +3,14 @@ import ReactDOM from 'react-dom/client';
 import { 
   Plus, Search, Home, MoreHorizontal, 
   Wallet, Briefcase, Utensils, Lock,
-  ChevronRight, ArrowDownRight, ArrowUpRight, Download, 
-  KeyRound, Shield, Eye, EyeOff, X, Calendar, Trash2
+  ChevronRight, Download, KeyRound, 
+  Shield, Eye, EyeOff, X, Calendar, Trash2
 } from 'lucide-react';
 
-// --- Persistent Storage Engine ---
-// This ensures your data survives refreshes and "Add to Home Screen" launches.
+/**
+ * CUSTOM PERSISTENCE HOOK
+ * Saves your data directly to your phone's memory.
+ */
 function useLocalStorage(key, initialValue) {
   const [storedValue, setStoredValue] = useState(() => {
     try {
@@ -47,7 +49,7 @@ const Obscure = ({ children, isBlurred, className = '' }) => (
 );
 
 function App() {
-  // --- UI & Navigation State ---
+  // Navigation & UI State
   const [view, setView] = useState('home'); 
   const [showAddModal, setShowAddModal] = useState(false); 
   const [deepDiveId, setDeepDiveId] = useState(null);
@@ -55,7 +57,7 @@ function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // --- Persistent Database ---
+  // Persistent Database
   const [blurAmounts, setBlurAmounts] = useLocalStorage('fos_blur', false);
   const [showFiduciary, setShowFiduciary] = useLocalStorage('fos_showFid', false);
   const [appPin, setAppPin] = useLocalStorage('fos_pin_code', null);
@@ -65,7 +67,7 @@ function App() {
     { id: 3, date: 'Feb 19, 2026', title: 'Trust Allocation', type: 'fiduciary', amount: 200000, flow: 'in', note: 'Managed Fund' }
   ]);
 
-  // --- Security Logic ---
+  // Security Logic
   const [isLocked, setIsLocked] = useState(!!appPin);
   const [pinInput, setPinInput] = useState('');
   const [showPinSetup, setShowPinSetup] = useState(false);
@@ -79,13 +81,14 @@ function App() {
           setIsLocked(false);
           setPinInput('');
         } else {
+          // Visual feedback for wrong PIN
           setTimeout(() => setPinInput(''), 400);
         }
       }
     }
   };
 
-  // --- Financial Calculations ---
+  // Financial Calculations
   const totals = useMemo(() => {
     const personal = transactions.filter(t => t.type !== 'fiduciary');
     const fid = transactions.filter(t => t.type === 'fiduciary');
@@ -126,14 +129,19 @@ function App() {
     setShowAddModal(false);
   };
 
+  // -------------------------------------------------------------------------
+  // SECURITY OVERLAY (PIN LOCK)
+  // -------------------------------------------------------------------------
   if (isLocked) {
     return (
-      <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
+      <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-center p-8">
         <div className="w-16 h-16 rounded-3xl flex items-center justify-center mb-12 shadow-2xl" style={{ background: `linear-gradient(135deg, ${COLORS.gold}, #8a6d2d)` }}>
           <Lock className="text-black w-7 h-7" />
         </div>
         <div className="flex gap-6 mb-20">
-          {[0,1,2,3].map(i => <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 ${pinInput.length > i ? 'bg-gold border-gold scale-125' : 'border-slate-800'}`} />)}
+          {[0,1,2,3].map(i => (
+            <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 ${pinInput.length > i ? 'bg-gold border-gold scale-125' : 'border-slate-800'}`} />
+          ))}
         </div>
         <div className="grid grid-cols-3 gap-8">
           {[1,2,3,4,5,6,7,8,9].map(n => (
@@ -147,9 +155,13 @@ function App() {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // MAIN DASHBOARD UI
+  // -------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans pb-32 selection:bg-gold/30">
-      {/* Header */}
+      
+      {/* HEADER */}
       <header className="flex items-center justify-between px-6 pt-12 pb-6 sticky top-0 z-30 bg-[#05070a]/90 backdrop-blur-xl border-b border-[#1e2532]/30">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg" style={{ background: `linear-gradient(135deg, ${COLORS.gold}, #8a6d2d)` }}>
@@ -169,7 +181,8 @@ function App() {
 
       {view === 'home' ? (
         <main className="px-6 space-y-8 animate-in fade-in duration-500">
-          {/* Main Card */}
+          
+          {/* NET WORTH CARD */}
           <div className="space-y-4">
             <div onClick={() => setExpandNetWorth(!expandNetWorth)} className="rounded-[2.5rem] p-8 border bg-[#11151f] border-[#1e2532] shadow-2xl transition-all active:scale-[0.97] cursor-pointer">
               <div className="flex justify-between items-center mb-3">
@@ -181,7 +194,10 @@ function App() {
               </div>
               {expandNetWorth && (
                 <div className="mt-8 pt-6 border-t border-[#1e2532]/50 space-y-4 animate-in slide-in-from-top-4">
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-400"><span>History Snapshot</span><span className="text-mint">+ ₦450k Inflow</span></div>
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-400">
+                    <span>Account Health</span>
+                    <span className="text-mint uppercase tracking-tighter font-black">Verified</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -199,11 +215,11 @@ function App() {
             )}
           </div>
 
-          {/* Audit Trail */}
+          {/* AUDIT TRAIL */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Audit Trail</h3>
-              <button onClick={() => setShowFiduciary(!showFiduciary)} className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-full border transition-all ${showFiduciary ? 'bg-fiduciary border-fiduciary text-white' : 'border-slate-800 text-slate-600'}`}>
+              <button onClick={() => setShowFiduciary(!showFiduciary)} className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-full border transition-all ${showFiduciary ? 'bg-fiduciary border-fiduciary text-white shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'border-slate-800 text-slate-600'}`}>
                 {showFiduciary ? 'Fiduciary On' : 'Fid Off'}
               </button>
             </div>
@@ -211,7 +227,7 @@ function App() {
             <div className="space-y-3">
               {displayedTransactions.map(tx => (
                 <div key={tx.id} onClick={() => setDeepDiveId(deepDiveId === tx.id ? null : tx.id)} className="bg-[#11151f] border border-[#1e2532] p-5 rounded-3xl active:scale-[0.98] transition-all relative overflow-hidden group cursor-pointer">
-                  {tx.type === 'fiduciary' && <div className="absolute top-0 right-0 w-1 h-full bg-fiduciary shadow-[0_0_15px_rgba(139,92,246,0.3)]" />}
+                  {tx.type === 'fiduciary' && <div className="absolute top-0 right-0 w-1 h-full bg-fiduciary" />}
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-4">
                       <div className="w-11 h-11 rounded-2xl bg-[#05070a] flex items-center justify-center border border-[#1e2532] shadow-inner">
@@ -243,6 +259,7 @@ function App() {
           </section>
         </main>
       ) : (
+        /* SETTINGS VIEW */
         <main className="px-6 pt-4 space-y-10 animate-in slide-in-from-right">
            <section className="space-y-4">
               <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Security</h3>
@@ -264,7 +281,7 @@ function App() {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
                 const dlAnchor = document.createElement('a');
                 dlAnchor.setAttribute("href", dataStr);
-                dlAnchor.setAttribute("download", `FinanceOS_Backup_${new Date().toISOString().split('T')[0]}.json`);
+                dlAnchor.setAttribute("download", `FinanceOS_Backup_${Date.now()}.json`);
                 dlAnchor.click();
               }} className="w-full p-7 bg-[#11151f] border border-[#1e2532] rounded-[2.5rem] flex items-center justify-between active:scale-95 transition-all group">
                 <div className="flex items-center gap-5">
@@ -277,7 +294,7 @@ function App() {
         </main>
       )}
 
-      {/* PIN Setup Overlay */}
+      {/* OVERLAYS: PIN SETUP, ADD MODAL, SEARCH */}
       {showPinSetup && (
         <div className="fixed inset-0 z-[100] bg-[#05070a]/98 backdrop-blur-2xl flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
            <KeyRound className="w-12 h-12 text-gold mb-8 shadow-2xl" />
@@ -287,7 +304,6 @@ function App() {
         </div>
       )}
 
-      {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-end justify-center animate-in slide-in-from-bottom duration-500" onClick={() => setShowAddModal(false)}>
            <div className="w-full max-w-md bg-[#05070a] border-t border-[#1e2532] rounded-t-[3.5rem] p-10 pb-24 space-y-8" onClick={e => e.stopPropagation()}>
@@ -309,7 +325,6 @@ function App() {
         </div>
       )}
 
-      {/* Search Overlay */}
       {isSearching && (
         <div className="fixed inset-0 z-[110] bg-[#05070a]/98 backdrop-blur-2xl flex flex-col animate-in fade-in">
           <div className="px-6 pt-16 pb-6 border-b border-[#1e2532] bg-[#11151f] flex items-center gap-4">
@@ -330,7 +345,7 @@ function App() {
         </div>
       )}
 
-      {/* Bottom Nav */}
+      {/* BOTTOM NAV */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto px-12 py-8 bg-[#05070a]/95 backdrop-blur-3xl border-t border-[#1e2532] flex justify-between items-center z-40">
         <button onClick={() => setView('home')} className={`flex flex-col items-center gap-2 transition-all ${view === 'home' ? 'text-mint scale-110' : 'text-slate-700 hover:text-white'}`}>
           <Home className="w-6 h-6" />
@@ -350,6 +365,7 @@ function App() {
   );
 }
 
+// RENDER APP
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>

@@ -31,17 +31,23 @@ const generateAuthorityId = () => {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
 };
 
+const initialAddState = {
+  type: 'outflow',
+  title: '',
+  amount: 1000,
+  category: 'Other',
+  memo: '',
+  isFiduciary: false
+};
+
 // --- COMPONENTS ---
 
-/**
- * Slide-to-Confirm Interaction
- */
 const SlideToConfirm = ({ onConfirm, label = "Slide to Confirm", color = COLORS.gold }) => {
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef(null);
-  const threshold = 0.8; // 80% of width
+  const threshold = 0.8;
 
   const handleStart = (e) => {
     const x = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
@@ -96,9 +102,6 @@ const SlideToConfirm = ({ onConfirm, label = "Slide to Confirm", color = COLORS.
   );
 };
 
-/**
- * Quantum Logarithmic Slider
- */
 const QuantumSlider = ({ value, onChange }) => {
   const minPos = 0;
   const maxPos = 1000;
@@ -133,9 +136,6 @@ const QuantumSlider = ({ value, onChange }) => {
           value={sliderPos}
           onChange={handleChange}
           className="absolute inset-0 w-full h-2 appearance-none bg-white/5 rounded-full outline-none cursor-pointer overflow-hidden"
-          style={{ 
-            accentColor: COLORS.gold,
-          }}
         />
         <div 
           className="absolute top-0 left-0 h-2 rounded-full pointer-events-none transition-all"
@@ -152,15 +152,6 @@ const QuantumSlider = ({ value, onChange }) => {
 
 // --- MAIN APPLICATION ---
 
-const initialAddState = {
-  type: 'outflow',
-  title: '',
-  amount: 1000,
-  category: 'Other',
-  memo: '',
-  isFiduciary: false
-};
-
 export default function App() {
   const [isLocked, setIsLocked] = useState(true);
   const [pin, setPin] = useState("");
@@ -171,24 +162,48 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
-  
-  // Modal state moved inside the component
   const [addData, setAddData] = useState(initialAddState);
+
+  // Global Styling Injection
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      input[type=range]::-webkit-slider-thumb {
+        appearance: none;
+        height: 24px;
+        width: 24px;
+        border-radius: 50%;
+        background: #c5a059;
+        cursor: pointer;
+        border: 4px solid #05070a;
+        box-shadow: 0 0 10px rgba(197, 160, 89, 0.5);
+        z-index: 10;
+        position: relative;
+      }
+      @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;600;800&display=swap');
+      body { font-family: 'Inter', sans-serif; background-color: #05070a; margin: 0; color: #f8fafc; }
+      .font-serif { font-family: 'EB Garamond', serif; }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
 
   // Persistence
   useEffect(() => {
-    const saved = localStorage.getItem(APP_ID);
-    if (saved) {
-      try {
-        setTransactions(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse stored transactions", e);
-      }
+    try {
+      const saved = localStorage.getItem(APP_ID);
+      if (saved) setTransactions(JSON.parse(saved));
+    } catch (e) {
+      console.warn("Storage access restricted or corrupted.");
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(APP_ID, JSON.stringify(transactions));
+    try {
+      localStorage.setItem(APP_ID, JSON.stringify(transactions));
+    } catch (e) {
+      // Silent fail for storage restrictions
+    }
   }, [transactions]);
 
   // Auth Logic
@@ -196,7 +211,6 @@ export default function App() {
     if (pin.length < 4) {
       const newPin = pin + num;
       setPin(newPin);
-      // Default PIN for demo: 1234
       if (newPin === "1234") { 
         setTimeout(() => setIsLocked(false), 200);
       } else if (newPin.length === 4) {
@@ -247,7 +261,7 @@ export default function App() {
     };
     setTransactions([newTx, ...transactions]);
     setShowAddModal(false);
-    setAddData(initialAddState); // Reset form
+    setAddData(initialAddState);
   };
 
   const deleteTransaction = (id) => {
@@ -267,12 +281,12 @@ export default function App() {
 
   if (isLocked) {
     return (
-      <div className="fixed inset-0 bg-[#05070a] text-white flex flex-col items-center justify-center p-8 select-none">
+      <div className="fixed inset-0 bg-[#05070a] text-white flex flex-col items-center justify-center p-8 select-none z-[100]">
         <div className="mb-12 text-center">
           <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/10 shadow-2xl">
             <Lock size={28} className="text-[#c5a059]" />
           </div>
-          <h1 className="text-xl font-serif tracking-widest uppercase">FinanceOS</h1>
+          <h1 className="text-xl font-serif tracking-widest uppercase text-[#f8fafc]">FinanceOS</h1>
           <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest">Executive Blueprint V6.5</p>
         </div>
 
@@ -303,8 +317,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#05070a] text-[#f8fafc] font-sans overflow-x-hidden pb-24">
-      
-      {/* HEADER */}
       <header className="sticky top-0 z-40 bg-[#05070a]/80 backdrop-blur-xl border-b border-white/5 p-4 md:px-8">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -340,8 +352,6 @@ export default function App() {
       </header>
 
       <main className="p-4 md:p-8 space-y-6">
-        
-        {/* EXECUTIVE BALANCE CARD */}
         <section className={`relative overflow-hidden rounded-3xl p-6 border border-white/10 bg-[#0f1218] transition-all duration-700 ${isPrivacyMode ? 'blur-md grayscale' : ''}`}>
           <div className="relative z-10">
             <div className="flex justify-between items-start mb-6">
@@ -368,11 +378,9 @@ export default function App() {
               </div>
             </div>
           </div>
-          
           <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-[#c5a059]/5 rounded-full blur-[80px]" />
         </section>
 
-        {/* FIDUCIARY LAYER TOGGLE */}
         <button 
           onClick={() => setIsFiduciaryGhosted(!isFiduciaryGhosted)}
           className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-all duration-300 active:scale-[0.98] ${isFiduciaryGhosted ? 'bg-white/5 border-white/10' : 'bg-[#8b5cf6]/10 border-[#8b5cf6]/30 shadow-[0_0_20px_#8b5cf622]'}`}
@@ -391,7 +399,6 @@ export default function App() {
           </div>
         </button>
 
-        {/* FILTERS */}
         <div className="flex gap-2">
           {['all', 'inflow', 'outflow'].map(type => (
             <button
@@ -404,7 +411,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* LOG ENTRIES */}
         <div className="space-y-3">
           <div className="flex justify-between items-center px-1">
             <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-40">Operational Log</h4>
@@ -476,7 +482,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* FAB - NEW TRANSACTION */}
       <button 
         onClick={() => setShowAddModal(true)}
         className="fixed bottom-8 right-8 h-16 w-16 rounded-full bg-[#c5a059] text-black shadow-[0_10px_30px_#c5a05944] flex items-center justify-center active:scale-90 transition-all z-50"
@@ -484,14 +489,13 @@ export default function App() {
         <Plus size={32} />
       </button>
 
-      {/* ADD MODAL */}
       {showAddModal && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
           <div className="relative w-full max-w-lg bg-[#0f1218] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-500">
             <div className="p-8 pb-4 flex justify-between items-center">
               <h3 className="text-xl font-serif">New Asset Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="p-2 opacity-50"><X /></button>
+              <button onClick={() => setShowAddModal(false)} className="p-2 opacity-50 text-white"><X /></button>
             </div>
 
             <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
@@ -511,7 +515,7 @@ export default function App() {
                 <label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Entry Label</label>
                 <input 
                   autoFocus
-                  className="w-full bg-transparent border-b border-white/10 py-2 text-xl outline-none focus:border-[#c5a059] transition-colors"
+                  className="w-full bg-transparent border-b border-white/10 py-2 text-xl outline-none focus:border-[#c5a059] transition-colors text-white"
                   placeholder="e.g. Dividend Distribution"
                   value={addData.title}
                   onChange={e => setAddData({...addData, title: e.target.value})}
@@ -541,7 +545,7 @@ export default function App() {
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Executive Memo</label>
                 <textarea 
-                  className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-[#c5a059]/30 min-h-[100px]"
+                  className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-[#c5a059]/30 min-h-[100px] text-white"
                   placeholder="Optional situational context..."
                   value={addData.memo}
                   onChange={e => setAddData({...addData, memo: e.target.value})}
@@ -561,27 +565,4 @@ export default function App() {
       )}
     </div>
   );
-}
-
-// Style Injection for custom slider handle and fonts
-if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = `
-    input[type=range]::-webkit-slider-thumb {
-      appearance: none;
-      height: 24px;
-      width: 24px;
-      border-radius: 50%;
-      background: #c5a059;
-      cursor: pointer;
-      border: 4px solid #05070a;
-      box-shadow: 0 0 10px rgba(197, 160, 89, 0.5);
-      z-index: 10;
-      position: relative;
-    }
-    @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;600;800&display=swap');
-    body { font-family: 'Inter', sans-serif; background-color: #05070a; margin: 0; }
-    .font-serif { font-family: 'EB Garamond', serif; }
-  `;
-  document.head.appendChild(style);
 }
